@@ -1,12 +1,10 @@
 from flask import Flask, request, jsonify
-from werkzeug.middleware.proxy_fix import ProxyFix
 import requests
 import os
 import threading
 import time
 
 app = Flask(__name__)
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 BASE44 = "https://api.base44.com/api/apps/69dcfe355119b1dc9b087c32/entities"
 HEADERS = {
@@ -18,7 +16,7 @@ PORT = int(os.environ.get("PORT", 8080))
 
 # ===== KEEP ALIVE =====
 def keep_alive():
-    time.sleep(30)
+    time.sleep(60)
     while True:
         try:
             requests.get(f"http://localhost:{PORT}/", timeout=5)
@@ -34,7 +32,7 @@ t.start()
 def health():
     return jsonify({"status": "ok"}), 200
 
-@app.route("/functions/receiveData")
+@app.route("/functions/receiveData", methods=["GET", "POST"])
 def receive():
     q = request.args
     print(f"[receiveData] RAW QUERY: {dict(q)}", flush=True)
@@ -47,13 +45,13 @@ def receive():
         "running":  q.get("run") == "1",
         "alarm_hi": q.get("ah") == "1",
         "alarm_lo": q.get("al") == "1",
-        "kp":  float(q.get("kp", 0)),
-        "ki":  float(q.get("ki", 0)),
-        "kd":  float(q.get("kd", 0)),
-        "pmax": int(q.get("pm", 240)),
-        "rlim": int(q.get("rl", 25))
+        "kp":       float(q.get("kp", 0)),
+        "ki":       float(q.get("ki", 0)),
+        "kd":       float(q.get("kd", 0)),
+        "pmax":     int(q.get("pm", 240)),
+        "rlim":     int(q.get("rl", 25))
     }
-    print(f"[receiveData] PAYLOAD TO BASE44: {payload}", flush=True)
+    print(f"[receiveData] PAYLOAD: {payload}", flush=True)
 
     try:
         resp = requests.post(
@@ -62,16 +60,16 @@ def receive():
             json=payload,
             timeout=10
         )
-        print(f"[receiveData] BASE44 RESPONSE: {resp.status_code} {resp.text[:200]}", flush=True)
+        print(f"[receiveData] BASE44: {resp.status_code} {resp.text[:200]}", flush=True)
     except Exception as e:
-        print(f"[receiveData] BASE44 ERROR: {e}", flush=True)
+        print(f"[receiveData] ERROR: {e}", flush=True)
 
-    return jsonify({"status": "ok"})
+    return jsonify({"status": "ok"}), 200
 
 
-@app.route("/functions/getCommand")
+@app.route("/functions/getCommand", methods=["GET"])
 def get_cmd():
-    print("[getCommand] Polling commands...", flush=True)
+    print("[getCommand] Polling...", flush=True)
 
     try:
         r = requests.get(
@@ -80,13 +78,13 @@ def get_cmd():
             timeout=10
         )
         data = r.json()
-        print(f"[getCommand] COMMANDS FROM BASE44: {data}", flush=True)
+        print(f"[getCommand] FROM BASE44: {data}", flush=True)
     except Exception as e:
-        print(f"[getCommand] BASE44 ERROR: {e}", flush=True)
-        return jsonify({"cmd_sp": None, "cmd_mode": None, "cmd_pwm": None, "cmd_running": None})
+        print(f"[getCommand] ERROR: {e}", flush=True)
+        return jsonify({"cmd_sp": None, "cmd_mode": None, "cmd_pwm": None, "cmd_running": None}), 200
 
     cmd = next((c for c in data if not c.get("consumed")), {})
-    print(f"[getCommand] SELECTED CMD: {cmd}", flush=True)
+    print(f"[getCommand] SELECTED: {cmd}", flush=True)
 
     if cmd.get("id"):
         try:
@@ -96,19 +94,17 @@ def get_cmd():
                 json={"consumed": True},
                 timeout=10
             )
-            print(f"[getCommand] Marked cmd {cmd['id']} as consumed", flush=True)
+            print(f"[getCommand] Marked {cmd['id']} consumed", flush=True)
         except Exception as e:
             print(f"[getCommand] Mark consumed ERROR: {e}", flush=True)
 
-    result = {
+    return jsonify({
         "cmd_sp":      cmd.get("cmd_sp"),
         "cmd_mode":    cmd.get("cmd_mode"),
         "cmd_pwm":     cmd.get("cmd_pwm"),
         "cmd_running": cmd.get("cmd_running")
-    }
-    print(f"[getCommand] RETURNING: {result}", flush=True)
-    return jsonify(result)
+    }), 200
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=PORT)
+    app.run(host="0.0.0.0", port=PORT, debug=False)
