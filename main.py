@@ -1,6 +1,8 @@
 from flask import Flask, request, jsonify
 import requests
 import os
+import threading
+import time
 
 app = Flask(__name__)
 
@@ -10,16 +12,26 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-# Force HTTP - no HTTPS redirect
-@app.before_request
-def handle_http():
-    # Allow HTTP requests without redirecting to HTTPS
-    pass
+# ===== KEEP ALIVE =====
+def keep_alive():
+    time.sleep(30)  # tunggu app ready dulu
+    while True:
+        try:
+            port = int(os.environ.get("PORT", 3000))
+            requests.get(f"http://localhost:{port}/", timeout=5)
+            print("[KEEPALIVE] Ping OK", flush=True)
+        except Exception as e:
+            print(f"[KEEPALIVE] Error: {e}", flush=True)
+        time.sleep(240)  # ping setiap 4 menit
+
+# Start keep alive thread
+t = threading.Thread(target=keep_alive, daemon=True)
+t.start()
 
 @app.after_request
 def add_headers(response):
-    # Remove any redirect headers that Railway might add
-    response.headers.pop('Location', None) if response.status_code in (301, 302) else None
+    if response.status_code in (301, 302):
+        response.headers.pop('Location', None)
     return response
 
 @app.route("/")
