@@ -10,9 +10,21 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
+# Force HTTP - no HTTPS redirect
+@app.before_request
+def handle_http():
+    # Allow HTTP requests without redirecting to HTTPS
+    pass
+
+@app.after_request
+def add_headers(response):
+    # Remove any redirect headers that Railway might add
+    response.headers.pop('Location', None) if response.status_code in (301, 302) else None
+    return response
+
 @app.route("/")
 def health():
-    return "OK", 200
+    return jsonify({"status": "ok"}), 200
 
 @app.route("/functions/receiveData")
 def receive():
@@ -38,7 +50,7 @@ def receive():
     resp = requests.post(f"{BASE44}/SensorData", headers=HEADERS, json=payload)
     print(f"[receiveData] BASE44 RESPONSE: {resp.status_code} {resp.text[:200]}", flush=True)
 
-    return "OK"
+    return jsonify({"status": "ok"})
 
 
 @app.route("/functions/getCommand")
