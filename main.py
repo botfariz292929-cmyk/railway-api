@@ -1,10 +1,12 @@
 from flask import Flask, request, jsonify
+from werkzeug.middleware.proxy_fix import ProxyFix
 import requests
 import os
 import threading
 import time
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 BASE44 = "https://api.base44.com/api/apps/69dcfe355119b1dc9b087c32/entities"
 HEADERS = {
@@ -27,12 +29,6 @@ def keep_alive():
 
 t = threading.Thread(target=keep_alive, daemon=True)
 t.start()
-
-@app.after_request
-def add_headers(response):
-    if response.status_code in (301, 302):
-        response.headers.pop("Location", None)
-    return response
 
 @app.route("/")
 def health():
