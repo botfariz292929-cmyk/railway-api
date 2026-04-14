@@ -12,19 +12,19 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
+PORT = int(os.environ.get("PORT", 8080))
+
 # ===== KEEP ALIVE =====
 def keep_alive():
-    time.sleep(30)  # tunggu app ready dulu
+    time.sleep(30)
     while True:
         try:
-            port = int(os.environ.get("PORT", 3000))
-            requests.get(f"http://localhost:{port}/", timeout=5)
+            requests.get(f"http://localhost:{PORT}/", timeout=5)
             print("[KEEPALIVE] Ping OK", flush=True)
         except Exception as e:
             print(f"[KEEPALIVE] Error: {e}", flush=True)
-        time.sleep(240)  # ping setiap 4 menit
+        time.sleep(240)
 
-# Start keep alive thread
 t = threading.Thread(target=keep_alive, daemon=True)
 t.start()
 
@@ -94,4 +94,4 @@ def get_cmd():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 3000)))
+    app.run(host="0.0.0.0", port=PORT)
