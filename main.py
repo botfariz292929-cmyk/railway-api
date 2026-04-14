@@ -6,7 +6,7 @@ import time
 
 app = Flask(__name__)
 
-BASE44 = "https://base44.app/api/apps/69dcfe355119b1dc9b087c32/entities"
+BASE44 = "https://api.base44.com/api/apps/69dcfe355119b1dc9b087c32/entities"
 HEADERS = {
     "api_key": "e2e5ae42e69b4f4bbefca3a956ac4bd5",
     "Content-Type": "application/json"
@@ -31,7 +31,7 @@ t.start()
 @app.after_request
 def add_headers(response):
     if response.status_code in (301, 302):
-        response.headers.pop('Location', None)
+        response.headers.pop("Location", None)
     return response
 
 @app.route("/")
@@ -59,8 +59,16 @@ def receive():
     }
     print(f"[receiveData] PAYLOAD TO BASE44: {payload}", flush=True)
 
-    resp = requests.post(f"{BASE44}/SensorData", headers=HEADERS, json=payload)
-    print(f"[receiveData] BASE44 RESPONSE: {resp.status_code} {resp.text[:200]}", flush=True)
+    try:
+        resp = requests.post(
+            f"{BASE44}/SensorData",
+            headers=HEADERS,
+            json=payload,
+            timeout=10
+        )
+        print(f"[receiveData] BASE44 RESPONSE: {resp.status_code} {resp.text[:200]}", flush=True)
+    except Exception as e:
+        print(f"[receiveData] BASE44 ERROR: {e}", flush=True)
 
     return jsonify({"status": "ok"})
 
@@ -69,19 +77,32 @@ def receive():
 def get_cmd():
     print("[getCommand] Polling commands...", flush=True)
 
-    r = requests.get(f"{BASE44}/DeviceCommand", headers=HEADERS).json()
-    print(f"[getCommand] COMMANDS FROM BASE44: {r}", flush=True)
+    try:
+        r = requests.get(
+            f"{BASE44}/DeviceCommand",
+            headers=HEADERS,
+            timeout=10
+        )
+        data = r.json()
+        print(f"[getCommand] COMMANDS FROM BASE44: {data}", flush=True)
+    except Exception as e:
+        print(f"[getCommand] BASE44 ERROR: {e}", flush=True)
+        return jsonify({"cmd_sp": None, "cmd_mode": None, "cmd_pwm": None, "cmd_running": None})
 
-    cmd = next((c for c in r if not c.get("consumed")), {})
+    cmd = next((c for c in data if not c.get("consumed")), {})
     print(f"[getCommand] SELECTED CMD: {cmd}", flush=True)
 
     if cmd.get("id"):
-        requests.put(
-            f"{BASE44}/DeviceCommand/{cmd['id']}",
-            headers=HEADERS,
-            json={"consumed": True}
-        )
-        print(f"[getCommand] Marked cmd {cmd['id']} as consumed", flush=True)
+        try:
+            requests.put(
+                f"{BASE44}/DeviceCommand/{cmd['id']}",
+                headers=HEADERS,
+                json={"consumed": True},
+                timeout=10
+            )
+            print(f"[getCommand] Marked cmd {cmd['id']} as consumed", flush=True)
+        except Exception as e:
+            print(f"[getCommand] Mark consumed ERROR: {e}", flush=True)
 
     result = {
         "cmd_sp":      cmd.get("cmd_sp"),
