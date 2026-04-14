@@ -13,12 +13,14 @@ HEADERS = {
 @app.route("/functions/receiveData")
 def receive():
     q = request.args
+    print(f"[receiveData] RAW QUERY: {dict(q)}", flush=True)
+
     payload = {
-        "pv":      float(q.get("pv", 0)),
-        "sp":      float(q.get("sp", 0)),
-        "output":  int(q.get("out", 0)),
-        "mode":    "PID" if q.get("mode") == "P" else "MANUAL",
-        "running": q.get("run") == "1",
+        "pv":       float(q.get("pv", 0)),
+        "sp":       float(q.get("sp", 0)),
+        "output":   int(q.get("out", 0)),
+        "mode":     "PID" if q.get("mode") == "P" else "MANUAL",
+        "running":  q.get("run") == "1",
         "alarm_hi": q.get("ah") == "1",
         "alarm_lo": q.get("al") == "1",
         "kp":  float(q.get("kp", 0)),
@@ -27,25 +29,41 @@ def receive():
         "pmax": int(q.get("pm", 240)),
         "rlim": int(q.get("rl", 25))
     }
-    requests.post(f"{BASE44}/SensorData", headers=HEADERS, json=payload)
+    print(f"[receiveData] PAYLOAD TO BASE44: {payload}", flush=True)
+
+    resp = requests.post(f"{BASE44}/SensorData", headers=HEADERS, json=payload)
+    print(f"[receiveData] BASE44 RESPONSE: {resp.status_code} {resp.text[:200]}", flush=True)
+
     return "OK"
+
 
 @app.route("/functions/getCommand")
 def get_cmd():
+    print("[getCommand] Polling commands...", flush=True)
+
     r = requests.get(f"{BASE44}/DeviceCommand", headers=HEADERS).json()
+    print(f"[getCommand] COMMANDS FROM BASE44: {r}", flush=True)
+
     cmd = next((c for c in r if not c.get("consumed")), {})
+    print(f"[getCommand] SELECTED CMD: {cmd}", flush=True)
+
     if cmd.get("id"):
         requests.put(
-            f"{BASE44}/DeviceCommand/{cmd["id"]}",
+            f"{BASE44}/DeviceCommand/{cmd['id']}",
             headers=HEADERS,
             json={"consumed": True}
         )
-    return jsonify({
+        print(f"[getCommand] Marked cmd {cmd['id']} as consumed", flush=True)
+
+    result = {
         "cmd_sp":      cmd.get("cmd_sp"),
         "cmd_mode":    cmd.get("cmd_mode"),
         "cmd_pwm":     cmd.get("cmd_pwm"),
         "cmd_running": cmd.get("cmd_running")
-    })
+    }
+    print(f"[getCommand] RETURNING: {result}", flush=True)
+    return jsonify(result)
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 3000)))
