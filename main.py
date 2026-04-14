@@ -10,6 +10,10 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
+@app.route("/")
+def health():
+    return "OK", 200
+
 @app.route("/functions/receiveData")
 def receive():
     q = request.args
